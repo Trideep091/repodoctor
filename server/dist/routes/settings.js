@@ -1,5 +1,6 @@
 import { Router } from 'express';
 import { getSettings, updateSettings } from '../config.js';
+import { GitHubAppService } from '../services/githubApp.js';
 export const settingsRouter = Router();
 // GET /api/settings - returns sanitized settings (never sends private keys)
 settingsRouter.get('/settings', (req, res) => {
@@ -7,6 +8,8 @@ settingsRouter.get('/settings', (req, res) => {
     res.json({
         aiProvider: current.aiProvider,
         hasGithubToken: !!current.githubToken,
+        hasGithubApp: GitHubAppService.isConfigured(),
+        githubAppId: current.githubAppId ? `${current.githubAppId}` : null,
         hasGeminiKey: !!current.geminiApiKey,
         hasOpenaiKey: !!current.openaiApiKey,
         githubTokenPreview: current.githubToken

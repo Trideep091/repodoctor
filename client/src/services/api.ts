@@ -7,7 +7,32 @@ import {
   AppSettings,
 } from '../types/index.js';
 
-const API_BASE = '/api';
+function resolveApiBase(): string {
+  const envUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  if (!envUrl) {
+    return '/api';
+  }
+  const clean = envUrl.replace(/\/+$/, '');
+  return clean.endsWith('/api') ? clean : `${clean}/api`;
+}
+
+const API_BASE = resolveApiBase();
+
+async function extractErrorMessage(res: Response, defaultMessage: string): Promise<string> {
+  try {
+    const err = await res.json();
+    if (err && err.error) return err.error;
+  } catch {
+    // If response was not JSON (e.g. HTML 404/502/503 from Vercel or cloud host)
+    if (res.status === 404) {
+      return 'Backend API endpoint not found (404). Ensure your backend is deployed and VITE_API_URL is configured in Vercel settings (e.g., https://your-backend.onrender.com).';
+    }
+    if (res.status === 502 || res.status === 503 || res.status === 504) {
+      return `Backend server is temporarily unavailable (${res.status}). If using a free-tier host like Render, it may be waking up from idle (takes ~30-50s). Please wait a moment and try again.`;
+    }
+  }
+  return `${defaultMessage} (${res.status})`;
+}
 
 export class ApiService {
   static async diagnoseRepository(url: string, branch?: string): Promise<DiagnosisReport> {
@@ -18,8 +43,8 @@ export class ApiService {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
-      throw new Error(err.error || 'Failed to diagnose repository');
+      const message = await extractErrorMessage(res, 'Failed to diagnose repository');
+      throw new Error(message);
     }
 
     return await res.json();
@@ -37,8 +62,8 @@ export class ApiService {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
-      throw new Error(err.error || 'Failed to generate repairs');
+      const message = await extractErrorMessage(res, 'Failed to generate repairs');
+      throw new Error(message);
     }
 
     return await res.json();
@@ -57,8 +82,8 @@ export class ApiService {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `Server error ${res.status}` }));
-      throw new Error(err.error || 'Failed to create Pull Request');
+      const message = await extractErrorMessage(res, 'Failed to create Pull Request');
+      throw new Error(message);
     }
 
     return await res.json();
@@ -90,8 +115,8 @@ export class ApiService {
 
     const res = await fetch(`${API_BASE}/pr/status?${params.toString()}`);
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `Status error ${res.status}` }));
-      throw new Error(err.error || 'Failed to check PR status');
+      const message = await extractErrorMessage(res, 'Failed to check PR status');
+      throw new Error(message);
     }
 
     return await res.json();
@@ -105,8 +130,8 @@ export class ApiService {
     });
 
     if (!res.ok) {
-      const err = await res.json().catch(() => ({ error: `Rescan error ${res.status}` }));
-      throw new Error(err.error || 'Failed to rescan repository');
+      const message = await extractErrorMessage(res, 'Failed to rescan repository');
+      throw new Error(message);
     }
 
     return await res.json();

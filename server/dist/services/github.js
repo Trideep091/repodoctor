@@ -1,5 +1,6 @@
 import { getSettings } from '../config.js';
 import { TKS_SYNTHETIC_REPO } from '../fixtures/tksFixture.js';
+import { GitHubAppService } from './githubApp.js';
 function getAuthHeaders(explicitToken) {
     const settings = getSettings();
     const token = explicitToken || settings.githubToken || process.env.GITHUB_TOKEN;
@@ -12,7 +13,52 @@ function getAuthHeaders(explicitToken) {
     }
     return headers;
 }
+export class GitHubApiError extends Error {
+    statusCode;
+    code;
+    constructor(message, statusCode = 500, code = 'GITHUB_API_ERROR') {
+        super(message);
+        this.name = 'GitHubApiError';
+        this.statusCode = statusCode;
+        this.code = code;
+    }
+}
 export class GitHubService {
+    /**
+     * Resolves an effective authorization token for a repository.
+     * Prioritizes GitHub App installation access token if configured.
+     * Falls back to explicit token, then settings/env GITHUB_TOKEN.
+     */
+    static async resolveAuthToken(owner, repo, explicitToken, isSynthetic = false) {
+        if (isSynthetic)
+            return 'synthetic_token';
+        if (explicitToken && explicitToken.trim()) {
+            return explicitToken.trim();
+        }
+        // 1. Prioritize GitHub App installation access token
+        if (GitHubAppService.isConfigured()) {
+            try {
+                const appAuth = await GitHubAppService.getInstallationAccessToken(owner, repo);
+                return appAuth.token;
+            }
+            catch (err) {
+                console.warn(`[GitHubService] GitHub App token resolution error for "${owner}/${repo}":`, err.message);
+                // If a PAT is available as fallback, use it; otherwise rethrow
+                const settings = getSettings();
+                const fallback = settings.githubToken || process.env.GITHUB_TOKEN;
+                if (!fallback || !fallback.trim()) {
+                    throw err;
+                }
+            }
+        }
+        // 2. Fallback to Personal Access Token (PAT)
+        const settings = getSettings();
+        const pat = settings.githubToken || process.env.GITHUB_TOKEN;
+        if (pat && pat.trim()) {
+            return pat.trim();
+        }
+        throw new GitHubApiError('GitHub authorization required: No GitHub App credentials or Personal Access Token (PAT) configured. Please configure your GitHub App credentials (GITHUB_APP_ID & GITHUB_APP_PRIVATE_KEY) or set GITHUB_TOKEN in Settings.', 401, 'AUTH_REQUIRED');
+    }
     /**
      * Fetches repository metadata (stars, forks, open issues, default branch, etc.)
      */
@@ -35,16 +81,35 @@ export class GitHubService {
         const response = await fetch(url, { headers: getAuthHeaders(token) });
         if (!response.ok) {
             if (response.status === 404) {
-                throw new Error(`Repository "${owner}/${repo}" was not found on GitHub. If this repository is private, configure a GitHub Personal Access Token with 'repo' scope in Settings.`);
+                // Distinguish whether the owner account exists or if this is a private repo without authorization
+                let ownerExists = false;
+                try {
+                    const ownerCheck = await fetch(`https://api.github.com/users/${owner}`, {
+                        headers: { 'User-Agent': 'RepoDoctor-AuditBot/1.0', Accept: 'application/vnd.github.v3+json' },
+                    });
+                    ownerExists = ownerCheck.status === 200;
+                }
+                catch {
+                    // ignore network error
+                }
+                if (!ownerExists) {
+                    throw new GitHubApiError(`GitHub user or organization "${owner}" does not exist. Please check the repository URL for typos.`, 404, 'OWNER_NOT_FOUND');
+                }
+                if (token) {
+                    throw new GitHubApiError(`Repository "${owner}/${repo}" was not found or the provided credentials do not have permission to access it.`, 404, 'REPO_NOT_FOUND_OR_FORBIDDEN');
+                }
+                else {
+                    throw new GitHubApiError(`Repository "${owner}/${repo}" was not found or is private. Accessible public repositories can be diagnosed directly; for private repositories, install the Repo Doctor GitHub App on the repository or configure a Personal Access Token in Settings.`, 404, 'REPO_NOT_FOUND_OR_PRIVATE');
+                }
             }
             if (response.status === 403) {
                 const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
                 if (rateLimitRemaining === '0') {
-                    throw new Error('GitHub API rate limit exceeded. Please configure a GitHub Personal Access Token in Settings for higher limits (5,000 requests/hr).');
+                    throw new GitHubApiError('GitHub API rate limit exceeded for unauthenticated requests. Configure a Personal Access Token in Settings or install the GitHub App to increase your limit to 5,000 requests/hour.', 429, 'RATE_LIMIT_EXCEEDED');
                 }
-                throw new Error(`GitHub API access denied (403): ${await response.text()}`);
+                throw new GitHubApiError(`GitHub API access denied (403) for repository "${owner}/${repo}". Check repository permissions.`, 403, 'ACCESS_DENIED');
             }
-            throw new Error(`GitHub API returned error ${response.status}: ${await response.text()}`);
+            throw new GitHubApiError(`GitHub API returned status ${response.status} for repository "${owner}/${repo}".`, response.status >= 400 && response.status < 500 ? response.status : 500, 'GITHUB_API_ERROR');
         }
         const data = (await response.json());
         return {
@@ -90,7 +155,16 @@ export class GitHubService {
         const url = `https://api.github.com/repos/${owner}/${repo}/git/trees/${encodeURIComponent(branch)}?recursive=1`;
         const response = await fetch(url, { headers: getAuthHeaders(token) });
         if (!response.ok) {
-            throw new Error(`Failed to fetch file tree for branch "${branch}". Ensure the branch exists and is accessible.`);
+            if (response.status === 404) {
+                throw new GitHubApiError(`Branch "${branch}" was not found or repository "${owner}/${repo}" has no commits yet.`, 404, 'BRANCH_OR_TREE_NOT_FOUND');
+            }
+            if (response.status === 403) {
+                const rateLimitRemaining = response.headers.get('x-ratelimit-remaining');
+                if (rateLimitRemaining === '0') {
+                    throw new GitHubApiError('GitHub API rate limit exceeded for unauthenticated requests. Configure a Personal Access Token in Settings or install the GitHub App to increase your limit to 5,000 requests/hour.', 429, 'RATE_LIMIT_EXCEEDED');
+                }
+            }
+            throw new GitHubApiError(`Failed to fetch file tree for "${owner}/${repo}" on branch "${branch}".`, response.status, 'TREE_FETCH_ERROR');
         }
         const data = (await response.json());
         if (!data.tree || !Array.isArray(data.tree)) {
@@ -150,11 +224,7 @@ export class GitHubService {
             TKS_SYNTHETIC_REPO.files[newBranchName] = { ...baseFiles };
             return `refs/heads/${newBranchName}`;
         }
-        const settings = getSettings();
-        const effectiveToken = token || settings.githubToken || process.env.GITHUB_TOKEN;
-        if (!effectiveToken || !effectiveToken.trim()) {
-            throw new Error('GitHub authorization required: A GitHub Personal Access Token (PAT) with "repo" write scope is required to create a branch. Please configure your token in Settings.');
-        }
+        const effectiveToken = await this.resolveAuthToken(owner, repo, token, isSynthetic);
         // Step 1: Get base branch commit SHA
         const baseRefUrl = `https://api.github.com/repos/${owner}/${repo}/git/ref/heads/${encodeURIComponent(baseBranch)}`;
         const baseResp = await fetch(baseRefUrl, { headers: getAuthHeaders(effectiveToken) });
@@ -208,11 +278,7 @@ export class GitHubService {
             const fakeSha = `synth_commit_${Date.now().toString(16)}`;
             return fakeSha;
         }
-        const settings = getSettings();
-        const effectiveToken = token || settings.githubToken || process.env.GITHUB_TOKEN;
-        if (!effectiveToken || !effectiveToken.trim()) {
-            throw new Error('GitHub authorization required: A GitHub Personal Access Token (PAT) with "repo" write scope is required to commit files. Please configure your token in Settings.');
-        }
+        const effectiveToken = await this.resolveAuthToken(owner, repo, token, isSynthetic);
         let lastSha = '';
         for (const file of files) {
             // Check if file already exists on this branch to obtain its SHA (required by GitHub contents API)
@@ -268,11 +334,7 @@ export class GitHubService {
                 isSimulation: true,
             };
         }
-        const settings = getSettings();
-        const effectiveToken = token || settings.githubToken || process.env.GITHUB_TOKEN;
-        if (!effectiveToken || !effectiveToken.trim()) {
-            throw new Error('GitHub authorization required: A GitHub Personal Access Token (PAT) with "repo" write scope is required to open a Pull Request. Please configure your token in Settings.');
-        }
+        const effectiveToken = await this.resolveAuthToken(owner, repo, token, isSynthetic);
         const url = `https://api.github.com/repos/${owner}/${repo}/pulls`;
         const response = await fetch(url, {
             method: 'POST',

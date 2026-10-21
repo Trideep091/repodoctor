@@ -11,11 +11,36 @@ import { calculateTransparentScores } from '../scoring/scoreCalculator.js';
 import { AIRepairEngine } from '../repair/aiEngine.js';
 
 test('URL Parser validates GitHub URLs and protects against SSRF', () => {
-  // Valid URLs
+  // Valid URLs with normalization
   const valid1 = parseAndValidateGithubUrl('https://github.com/facebook/react');
   assert.equal(valid1.isValid, true);
   assert.equal(valid1.owner, 'facebook');
   assert.equal(valid1.repo, 'react');
+
+  // .git suffix removal
+  const withGit = parseAndValidateGithubUrl('https://github.com/trideep026/stock-photo.git');
+  assert.equal(withGit.isValid, true);
+  assert.equal(withGit.owner, 'trideep026');
+  assert.equal(withGit.repo, 'stock-photo');
+  assert.equal(withGit.normalizedUrl, 'https://github.com/trideep026/stock-photo');
+
+  // Trailing slash and query parameters
+  const withTrailingSlash = parseAndValidateGithubUrl('https://github.com/trideep026/stock-photo/?tab=readme-ov-file#section');
+  assert.equal(withTrailingSlash.isValid, true);
+  assert.equal(withTrailingSlash.owner, 'trideep026');
+  assert.equal(withTrailingSlash.repo, 'stock-photo');
+
+  // SSH git clone format
+  const sshUrl = parseAndValidateGithubUrl('git@github.com:trideep026/stock-photo.git');
+  assert.equal(sshUrl.isValid, true);
+  assert.equal(sshUrl.owner, 'trideep026');
+  assert.equal(sshUrl.repo, 'stock-photo');
+
+  // Shorthand owner/repo notation
+  const shorthand = parseAndValidateGithubUrl('trideep026/stock-photo');
+  assert.equal(shorthand.isValid, true);
+  assert.equal(shorthand.owner, 'trideep026');
+  assert.equal(shorthand.repo, 'stock-photo');
 
   // SSRF Protection: localhost & private IPs
   const ssrf1 = parseAndValidateGithubUrl('http://localhost:8080/admin');

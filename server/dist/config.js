@@ -1,15 +1,28 @@
 import dotenv from 'dotenv';
 import path from 'path';
+import fs from 'fs';
 import { fileURLToPath } from 'url';
-dotenv.config();
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+// Load .env from process.cwd() or project root
+const envPaths = [
+    path.resolve(process.cwd(), '.env'),
+    path.resolve(__dirname, '../.env'),
+    path.resolve(__dirname, '../../.env'),
+];
+for (const p of envPaths) {
+    if (fs.existsSync(p)) {
+        dotenv.config({ path: p });
+        break;
+    }
+}
 export const PORT = process.env.PORT ? parseInt(process.env.PORT, 10) : 5001;
 // Default scoring weights according to PS-08 challenge specs
 export const DEFAULT_SETTINGS = {
     githubToken: process.env.GITHUB_TOKEN || '',
     githubAppId: process.env.GITHUB_APP_ID || '',
     githubAppPrivateKey: process.env.GITHUB_APP_PRIVATE_KEY || '',
+    githubAppPrivateKeyPath: process.env.GITHUB_APP_PRIVATE_KEY_PATH || '',
     githubAppInstallationId: process.env.GITHUB_APP_INSTALLATION_ID || '',
     aiProvider: process.env.AI_PROVIDER || 'deterministic',
     geminiApiKey: process.env.GEMINI_API_KEY || '',

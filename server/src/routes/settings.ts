@@ -1,5 +1,6 @@
 import { Router, Request, Response } from 'express';
 import { getSettings, updateSettings } from '../config.js';
+import { GitHubAppService } from '../services/githubApp.js';
 
 export const settingsRouter = Router();
 
@@ -9,6 +10,8 @@ settingsRouter.get('/settings', (req: Request, res: Response) => {
   res.json({
     aiProvider: current.aiProvider,
     hasGithubToken: !!current.githubToken,
+    hasGithubApp: GitHubAppService.isConfigured(),
+    githubAppId: current.githubAppId ? `${current.githubAppId}` : null,
     hasGeminiKey: !!current.geminiApiKey,
     hasOpenaiKey: !!current.openaiApiKey,
     githubTokenPreview: current.githubToken

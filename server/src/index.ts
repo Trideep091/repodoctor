@@ -9,10 +9,39 @@ import { settingsRouter } from './routes/settings.js';
 
 const app = express();
 
-app.use(cors());
+const corsOrigin = process.env.CORS_ORIGIN
+  ? process.env.CORS_ORIGIN.split(',').map((o) => o.trim())
+  : '*';
+
+app.use(
+  cors({
+    origin: corsOrigin,
+    credentials: true,
+  })
+);
 app.use(express.json({ limit: '15mb' }));
 
-// Health check
+// Root service status and platform health checks
+app.get('/', (req, res) => {
+  res.json({
+    status: 'ok',
+    service: 'Repo Doctor API',
+    version: '1.0.0',
+    endpoints: {
+      health: '/api/health',
+      diagnose: '/api/diagnose',
+      repair: '/api/repair/generate',
+      pr: '/api/pr/create',
+      settings: '/api/settings',
+    },
+  });
+});
+
+app.get('/health', (req, res) => {
+  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+});
+
+// Health check under /api/health
 app.get('/api/health', (req, res) => {
   res.json({
     status: 'ok',

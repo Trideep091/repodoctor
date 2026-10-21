@@ -24,28 +24,32 @@ prRouter.post('/pr/create', async (req, res) => {
         const { owner, name: repo } = report.repository;
         const isSynthetic = !!report.isSyntheticTest;
         const targetBaseBranch = baseBranch || report.repository.selectedBranch || report.repository.defaultBranch;
-        // Verify token presence for non-synthetic repositories
+        // Verify GitHub App or token presence for non-synthetic repositories
         const { getSettings } = await import('../config.js');
         const settings = getSettings();
         const token = settings.githubToken || process.env.GITHUB_TOKEN;
-        if (!isSynthetic && (!token || !token.trim())) {
+        const { GitHubAppService } = await import('../services/githubApp.js');
+        const hasApp = GitHubAppService.isConfigured();
+        if (!isSynthetic && !hasApp && (!token || !token.trim())) {
             res.status(401).json({
-                error: 'GitHub authorization required: A GitHub Personal Access Token (PAT) with "repo" write scope is required to create a repair branch and open a Pull Request. Please configure your token in Settings.',
+                error: 'GitHub authorization required: Please configure your Repo Doctor GitHub App (GITHUB_APP_ID & GITHUB_APP_PRIVATE_KEY) or a GitHub Personal Access Token (PAT) with "repo" write scope in Settings to create branches and open Pull Requests.',
             });
             return;
         }
+        // Resolve effective authentication token (GitHub App installation token or PAT)
+        const effectiveToken = await GitHubService.resolveAuthToken(owner, repo, undefined, isSynthetic);
         // 1. Generate unique dedicated repair branch name
         const uniqueId = Math.random().toString(36).substring(2, 8);
         const repairBranchName = `repo-doctor/health-fixes-${uniqueId}`;
         // 2. Create the repair branch pointing to base branch SHA (never push directly to base branch)
-        await GitHubService.createRepairBranch(owner, repo, repairBranchName, targetBaseBranch, isSynthetic);
+        await GitHubService.createRepairBranch(owner, repo, repairBranchName, targetBaseBranch, isSynthetic, effectiveToken);
         // 3. Commit approved file changes
         const filesToCommit = patches.map((p) => ({
             path: p.filePath,
             content: p.proposedContent,
             message: `fix(repo-doctor): ${p.explanation || `address finding ${p.findingId}`}`,
         }));
-        const commitSha = await GitHubService.commitFiles(owner, repo, repairBranchName, filesToCommit, 'chore(repo-doctor): apply automated health & security remediations', isSynthetic);
+        const commitSha = await GitHubService.commitFiles(owner, repo, repairBranchName, filesToCommit, 'chore(repo-doctor): apply automated health & security remediations', isSynthetic, effectiveToken);
         // 4. Construct PR description
         const prTitle = title || `[Repo Doctor] Automated Repository Health & Security Fixes`;
         const appliedFindingIds = patches.map((p) => p.findingId);
@@ -67,7 +71,7 @@ ${patches
 ---
 *Generated automatically by [Repo Doctor](https://github.com/devf8rge)*`;
         // 5. Open real GitHub Pull Request
-        const prResult = await GitHubService.createPullRequest(owner, repo, repairBranchName, targetBaseBranch, prTitle, prBody, isSynthetic);
+        const prResult = await GitHubService.createPullRequest(owner, repo, repairBranchName, targetBaseBranch, prTitle, prBody, isSynthetic, effectiveToken);
         const result = {
             success: true,
             prUrl: prResult.prUrl,

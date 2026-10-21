@@ -63,7 +63,11 @@ test('Audit 5, 6, 7: Dedicated repair branch creation & token error when unauthe
       await GitHubService.createRepairBranch('octocat', 'Hello-World', 'repo-doctor/health-fixes-test', 'master', false);
     },
     (err: any) => {
-      assert.ok(err.message.includes('GitHub authorization required') || err.message.includes('Personal Access Token'));
+      assert.ok(
+        err.message.includes('GitHub authorization required') ||
+        err.message.includes('Personal Access Token') ||
+        err.message.includes('not installed')
+      );
       return true;
     }
   );
@@ -74,7 +78,11 @@ test('Audit 5, 6, 7: Dedicated repair branch creation & token error when unauthe
       await GitHubService.createPullRequest('octocat', 'Hello-World', 'repo-doctor/health-fixes-test', 'master', 'Test', 'Body', false);
     },
     (err: any) => {
-      assert.ok(err.message.includes('GitHub authorization required') || err.message.includes('Personal Access Token'));
+      assert.ok(
+        err.message.includes('GitHub authorization required') ||
+        err.message.includes('Personal Access Token') ||
+        err.message.includes('not installed')
+      );
       return true;
     }
   );

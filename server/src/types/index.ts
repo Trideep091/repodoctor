@@ -185,6 +185,7 @@ export interface AppSettings {
   githubToken?: string;
   githubAppId?: string;
   githubAppPrivateKey?: string;
+  githubAppPrivateKeyPath?: string;
   githubAppInstallationId?: string;
   aiProvider: 'gemini' | 'openai' | 'claude' | 'deterministic';
   geminiApiKey?: string;

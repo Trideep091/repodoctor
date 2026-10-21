@@ -18,7 +18,7 @@ export function parseAndValidateGithubUrl(rawUrl) {
             error: 'URL is required',
         };
     }
-    const trimmed = rawUrl.trim();
+    let trimmed = rawUrl.trim();
     // Support synthetic test repository shortcut for TK-S challenge
     if (trimmed === 'synthetic://devf8rge/tk-s-repo' ||
         trimmed === 'demo://tk-s' ||
@@ -33,6 +33,16 @@ export function parseAndValidateGithubUrl(rawUrl) {
             normalizedUrl: 'https://github.com/devf8rge/tk-s-challenge',
             branch: 'main',
         };
+    }
+    // Support SSH git clone format: git@github.com:owner/repo(.git)
+    if (trimmed.startsWith('git@github.com:')) {
+        const pathPart = trimmed.slice('git@github.com:'.length);
+        trimmed = `https://github.com/${pathPart}`;
+    }
+    // Support shorthand "owner/repo" format (e.g., trideep026/stock-photo)
+    const shorthandPattern = /^[a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+$/;
+    if (shorthandPattern.test(trimmed)) {
+        trimmed = `https://github.com/${trimmed}`;
     }
     let parsed;
     try {

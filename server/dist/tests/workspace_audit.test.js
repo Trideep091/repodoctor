@@ -49,14 +49,18 @@ test('Audit 5, 6, 7: Dedicated repair branch creation & token error when unauthe
     await assert.rejects(async () => {
         await GitHubService.createRepairBranch('octocat', 'Hello-World', 'repo-doctor/health-fixes-test', 'master', false);
     }, (err) => {
-        assert.ok(err.message.includes('GitHub authorization required') || err.message.includes('Personal Access Token'));
+        assert.ok(err.message.includes('GitHub authorization required') ||
+            err.message.includes('Personal Access Token') ||
+            err.message.includes('not installed'));
         return true;
     });
     // Real repo PR creation without token should throw clear authentication error
     await assert.rejects(async () => {
         await GitHubService.createPullRequest('octocat', 'Hello-World', 'repo-doctor/health-fixes-test', 'master', 'Test', 'Body', false);
     }, (err) => {
-        assert.ok(err.message.includes('GitHub authorization required') || err.message.includes('Personal Access Token'));
+        assert.ok(err.message.includes('GitHub authorization required') ||
+            err.message.includes('Personal Access Token') ||
+            err.message.includes('not installed'));
         return true;
     });
 });
