@@ -57,15 +57,18 @@ export function parseAndValidateGithubUrl(rawUrl: string): ParsedRepoUrl {
     trimmed = `https://github.com/${pathPart}`;
   }
 
-  // Support shorthand "owner/repo" format (e.g., trideep026/stock-photo)
+  // Strip trailing slashes for shorthand matching
+  const cleanCandidate = trimmed.replace(/\/+$/, '');
+
+  // Support shorthand "owner/repo" or "owner/repo.git" format (e.g., trideep026/stock-photo)
   const shorthandPattern = /^[a-zA-Z0-9_\-\.]+\/[a-zA-Z0-9_\-\.]+$/;
-  if (shorthandPattern.test(trimmed)) {
-    trimmed = `https://github.com/${trimmed}`;
+  if (!cleanCandidate.includes('://') && !cleanCandidate.toLowerCase().startsWith('github.com/') && shorthandPattern.test(cleanCandidate)) {
+    trimmed = `https://github.com/${cleanCandidate}`;
   }
 
   let parsed: URL;
   try {
-    parsed = new URL(trimmed.startsWith('http') ? trimmed : `https://${trimmed}`);
+    parsed = new URL(trimmed.startsWith('http://') || trimmed.startsWith('https://') || trimmed.startsWith('git://') ? trimmed : `https://${trimmed}`);
   } catch (err) {
     return {
       isValid: false,
@@ -126,9 +129,19 @@ export function parseAndValidateGithubUrl(rawUrl: string): ParsedRepoUrl {
   const owner = segments[0];
   let repo = segments[1];
 
-  // Strip .git suffix if present
-  if (repo.endsWith('.git')) {
-    repo = repo.slice(0, -4);
+  // Strip .git suffix case-insensitively (.git, .GIT, .Git)
+  repo = repo.replace(/\.git$/i, '');
+
+  if (!owner || !repo) {
+    return {
+      isValid: false,
+      isSynthetic: false,
+      owner: '',
+      repo: '',
+      fullName: '',
+      normalizedUrl: '',
+      error: 'Repository name or owner cannot be empty',
+    };
   }
 
   // Basic validation of owner and repo naming constraints

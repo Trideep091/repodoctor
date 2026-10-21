@@ -13,9 +13,12 @@ node_modules/
 
 # Build outputs & caches
 dist/
+client/dist/
+server/dist/
 build/
 .cache/
 *.tsbuildinfo
+*.code-workspace
 
 # OS & Editor metadata
 .DS_Store

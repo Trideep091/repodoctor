@@ -59,7 +59,11 @@ export class GitHubService {
         const settings = getSettings();
         const fallback = settings.githubToken || process.env.GITHUB_TOKEN;
         if (!fallback || !fallback.trim()) {
-          throw err;
+          throw new GitHubApiError(
+            `GitHub App is not installed on repository "${owner}/${repo}". Please install the Repo Doctor GitHub App on "${owner}/${repo}" or configure a Personal Access Token with repo scope.`,
+            403,
+            'GITHUB_APP_NOT_INSTALLED'
+          );
         }
       }
     }

@@ -7,11 +7,39 @@ import {
   AppSettings,
 } from '../types/index.js';
 
-function resolveApiBase(): string {
+export function resolveApiBase(): string {
   const envUrl = (import.meta.env.VITE_API_URL as string | undefined)?.trim();
+  const isBrowser = typeof window !== 'undefined';
+  const isLocalHost =
+    isBrowser &&
+    (window.location.hostname === 'localhost' ||
+      window.location.hostname === '127.0.0.1' ||
+      window.location.hostname === '::1');
+
   if (!envUrl) {
     return '/api';
   }
+
+  // Guard: If deployed in production on Vercel or cloud domain, remove unintended localhost references
+  if (isBrowser && !isLocalHost) {
+    try {
+      const parsed = new URL(envUrl);
+      if (
+        parsed.hostname === 'localhost' ||
+        parsed.hostname === '127.0.0.1' ||
+        parsed.hostname === '::1'
+      ) {
+        console.warn(
+          '[RepoDoctor] VITE_API_URL references localhost in a production deployment. Falling back to relative "/api" route.'
+        );
+        return '/api';
+      }
+    } catch {
+      // Invalid URL format in VITE_API_URL, fallback to /api
+      return '/api';
+    }
+  }
+
   const clean = envUrl.replace(/\/+$/, '');
   return clean.endsWith('/api') ? clean : `${clean}/api`;
 }
@@ -21,11 +49,16 @@ const API_BASE = resolveApiBase();
 async function extractErrorMessage(res: Response, defaultMessage: string): Promise<string> {
   try {
     const err = await res.json();
-    if (err && err.error) return err.error;
+    if (err && err.error) {
+      if (err.code === 'API_ROUTE_NOT_FOUND') {
+        return `Backend API route not found (404): ${err.error}. Ensure your backend server is deployed and matches the expected routes.`;
+      }
+      return err.error;
+    }
   } catch {
-    // If response was not JSON (e.g. HTML 404/502/503 from Vercel or cloud host)
+    // Response was not JSON (e.g. HTML 404/502/503 from Vercel edge or cloud proxy)
     if (res.status === 404) {
-      return 'Backend API endpoint not found (404). Ensure your backend is deployed and VITE_API_URL is configured in Vercel settings (e.g., https://your-backend.onrender.com).';
+      return 'Backend API route not found (HTTP 404). If hosting your backend separately, set VITE_API_URL in your Vercel project settings (e.g., https://your-backend.onrender.com). If deploying as a Vercel serverless function, ensure vercel.json rewrites are deployed.';
     }
     if (res.status === 502 || res.status === 503 || res.status === 504) {
       return `Backend server is temporarily unavailable (${res.status}). If using a free-tier host like Render, it may be waking up from idle (takes ~30-50s). Please wait a moment and try again.`;
