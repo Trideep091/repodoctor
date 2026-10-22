@@ -3,6 +3,7 @@
   "version": "1.0.0",
   "description": "Full-Stack AI-Powered GitHub Repository Diagnosis, Security, Repair and Pull Request Platform",
   "private": true,
+  "type": "module",
   "workspaces": [
     "server",
     "client"
