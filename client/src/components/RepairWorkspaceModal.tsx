@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { GeneratedPatch, Finding } from '../types/index.js';
 import { ApiService } from '../services/api.js';
 import { DiffViewer } from './DiffViewer.js';
-import { X, GitPullRequest, AlertCircle, Wrench, Loader2, ShieldCheck, Scale } from 'lucide-react';
+import { X, GitPullRequest, AlertCircle, Wrench, Loader2, ShieldCheck, Scale, ExternalLink } from 'lucide-react';
 
 interface RepairWorkspaceModalProps {
   scanId: string;
@@ -306,27 +306,48 @@ export const RepairWorkspaceModal: React.FC<RepairWorkspaceModalProps> = ({
             </div>
           )}
         </div>
-{submitError && (
-          <div
-            style={{
-              margin: '0 24px 16px 24px',
-              padding: '12px 16px',
-              background: 'rgba(239, 68, 68, 0.1)',
-              border: '1px solid var(--status-critical)',
-              borderRadius: 'var(--radius-md)',
-              color: '#fca5a5',
-              display: 'flex',
-              alignItems: 'center',
-              gap: 12,
-              fontSize: '0.875rem',
-            }}
-          >
-            <AlertCircle size={20} style={{ flexShrink: 0, color: 'var(--status-critical)' }} />
-            <div style={{ flex: 1, wordBreak: 'break-word' }}>
-              <strong>GitHub Operation Error:</strong> {submitError}
+        {submitError && (() => {
+          const urlMatch = submitError.match(/https:\/\/github\.com\/apps\/[^\s]+/);
+          const installUrl = urlMatch ? urlMatch[0] : null;
+
+          return (
+            <div
+              style={{
+                margin: '0 24px 16px 24px',
+                padding: '14px 16px',
+                background: 'rgba(239, 68, 68, 0.1)',
+                border: '1px solid var(--status-critical)',
+                borderRadius: 'var(--radius-md)',
+                color: '#fca5a5',
+                display: 'flex',
+                flexDirection: 'column',
+                gap: 10,
+                fontSize: '0.875rem',
+              }}
+            >
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 12 }}>
+                <AlertCircle size={20} style={{ flexShrink: 0, color: 'var(--status-critical)', marginTop: 2 }} />
+                <div style={{ flex: 1, wordBreak: 'break-word' }}>
+                  <strong>GitHub Operation Error:</strong> {submitError}
+                </div>
+              </div>
+              {installUrl && (
+                <div style={{ paddingLeft: 32 }}>
+                  <a
+                    href={installUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="btn btn-primary"
+                    style={{ fontSize: '0.8125rem', display: 'inline-flex', alignItems: 'center', gap: 6 }}
+                  >
+                    <ExternalLink size={14} />
+                    <span>Install GitHub App on your repository</span>
+                  </a>
+                </div>
+              )}
             </div>
-          </div>
-        )}
+          );
+        })()}
 
         {/* Modal Footer with Branch Selection & Submit PR */}
         <div className="modal-footer" style={{ justifyContent: 'space-between', flexWrap: 'wrap', gap: 14 }}>

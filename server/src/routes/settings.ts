@@ -5,13 +5,18 @@ import { GitHubAppService } from '../services/githubApp.js';
 export const settingsRouter = Router();
 
 // GET /api/settings - returns sanitized settings (never sends private keys)
-settingsRouter.get('/settings', (req: Request, res: Response) => {
+settingsRouter.get('/settings', async (req: Request, res: Response) => {
   const current = getSettings();
+  const appInfo = await GitHubAppService.getAppInfo();
+
   res.json({
     aiProvider: current.aiProvider,
     hasGithubToken: !!current.githubToken,
     hasGithubApp: GitHubAppService.isConfigured(),
     githubAppId: current.githubAppId ? `${current.githubAppId}` : null,
+    githubAppName: appInfo?.name || null,
+    githubAppSlug: appInfo?.slug || null,
+    githubAppInstallUrl: appInfo?.installUrl || null,
     hasGeminiKey: !!current.geminiApiKey,
     hasOpenaiKey: !!current.openaiApiKey,
     githubTokenPreview: current.githubToken

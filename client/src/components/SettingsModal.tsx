@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { AppSettings, FindingCategory } from '../types/index.js';
 import { ApiService } from '../services/api.js';
-import { X, Settings, Key, Sliders, Cpu, Check, Loader2, Info } from 'lucide-react';
+import { X, Settings, Key, Sliders, Cpu, Check, Loader2, Info, ExternalLink } from 'lucide-react';
 
 interface SettingsModalProps {
   onClose: () => void;
@@ -98,13 +98,54 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({ onClose }) => {
               <div>
                 <h4 style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: '0.9375rem', fontWeight: 700, marginBottom: 8 }}>
                   <Key size={16} color="var(--accent-cyan)" />
-                  <span>GitHub Authentication (Option A PRs & Private Repos)</span>
+                  <span>GitHub Authentication & App Integration</span>
                 </h4>
-                <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
-                  Public repositories can be diagnosed without a token. Provide a Personal Access Token (PAT) with <code>repo</code> permissions to scan private repositories and submit actual repair Pull Requests to GitHub.
-                </p>
+
+                {settings?.hasGithubApp ? (
+                  <div
+                    style={{
+                      background: 'rgba(6, 182, 212, 0.08)',
+                      border: '1px solid rgba(6, 182, 212, 0.3)',
+                      borderRadius: 'var(--radius-sm)',
+                      padding: '12px 14px',
+                      marginBottom: 14,
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: 8,
+                    }}
+                  >
+                    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 8 }}>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: 'var(--accent-cyan)', fontWeight: 600, fontSize: '0.8125rem' }}>
+                        <Check size={14} />
+                        <span>GitHub App Active: {settings.githubAppName || 'Repo Doctor'} (ID: {settings.githubAppId})</span>
+                      </div>
+                      {settings.githubAppInstallUrl && (
+                        <a
+                          href={settings.githubAppInstallUrl}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="btn btn-primary"
+                          style={{ fontSize: '0.75rem', padding: '4px 10px' }}
+                        >
+                          <ExternalLink size={12} />
+                          <span>Install on Repositories</span>
+                        </a>
+                      )}
+                    </div>
+                    <p style={{ fontSize: '0.75rem', color: 'var(--text-secondary)', margin: 0 }}>
+                      When anyone installs this App on their GitHub account or selected repositories, Repo Doctor can automatically audit code and open Pull Requests directly for them without needing a personal access token.
+                    </p>
+                  </div>
+                ) : (
+                  <p style={{ fontSize: '0.8125rem', color: 'var(--text-secondary)', marginBottom: 12 }}>
+                    Public repositories can be diagnosed without authentication. Provide a Personal Access Token (PAT) with <code>repo</code> permissions or configure a GitHub App to scan private repositories and submit automated repair Pull Requests.
+                  </p>
+                )}
 
                 <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                  <label style={{ fontSize: '0.75rem', color: 'var(--text-muted)' }}>
+                    {settings?.hasGithubApp ? 'Optional Fallback: Personal Access Token (PAT)' : 'GitHub Personal Access Token (PAT)'}
+                  </label>
                   <input
                     type="password"
                     placeholder={settings?.hasGithubToken ? `Configured (${settings.githubTokenPreview}) — Enter new token to overwrite` : 'ghp_... or github_pat_...'}

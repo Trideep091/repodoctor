@@ -179,6 +179,11 @@ export interface ScanHistoryItem {
 export interface AppSettings {
   aiProvider: 'gemini' | 'openai' | 'claude' | 'deterministic';
   hasGithubToken: boolean;
+  hasGithubApp?: boolean;
+  githubAppId?: string | null;
+  githubAppName?: string | null;
+  githubAppSlug?: string | null;
+  githubAppInstallUrl?: string | null;
   hasGeminiKey: boolean;
   hasOpenaiKey: boolean;
   githubTokenPreview: string | null;

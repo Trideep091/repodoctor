@@ -12,6 +12,7 @@ interface CachedInstallationToken {
 
 export class GitHubAppService {
   private static tokenCache = new Map<string, CachedInstallationToken>();
+  private static appInfoCache: { id: string; name: string; slug: string; installUrl: string } | null = null;
 
   /**
    * Resolves GitHub App ID and Private Key from configuration or environment
@@ -114,6 +115,61 @@ export class GitHubAppService {
   }
 
   /**
+   * Fetches metadata for the configured GitHub App (slug, name, installation URL)
+   */
+  static async getAppInfo(): Promise<{ id: string; name: string; slug: string; installUrl: string } | null> {
+    if (!this.isConfigured()) return null;
+    if (this.appInfoCache) return this.appInfoCache;
+
+    const creds = this.getAppCredentials();
+    const explicitSlug = process.env.GITHUB_APP_SLUG?.trim();
+    if (explicitSlug) {
+      this.appInfoCache = {
+        id: creds?.appId || '',
+        name: process.env.GITHUB_APP_NAME?.trim() || 'Repo Doctor',
+        slug: explicitSlug,
+        installUrl: `https://github.com/apps/${encodeURIComponent(explicitSlug)}/installations/new`,
+      };
+      return this.appInfoCache;
+    }
+
+    try {
+      const appJwt = this.generateAppJwt();
+      const res = await fetch('https://api.github.com/app', {
+        headers: {
+          Authorization: `Bearer ${appJwt}`,
+          Accept: 'application/vnd.github+json',
+          'X-GitHub-Api-Version': '2022-11-28',
+          'User-Agent': 'RepoDoctor-AuditBot/1.0',
+        },
+      });
+
+      if (res.ok) {
+        const data = (await res.json()) as any;
+        const slug = data.slug || '';
+        const name = data.name || 'Repo Doctor';
+        const installUrl = data.html_url
+          ? `${data.html_url}/installations/new`
+          : slug
+          ? `https://github.com/apps/${slug}/installations/new`
+          : '';
+
+        this.appInfoCache = {
+          id: String(data.id || creds?.appId || ''),
+          name,
+          slug,
+          installUrl,
+        };
+        return this.appInfoCache;
+      }
+    } catch (err: any) {
+      console.warn('[GitHubApp] Failed to query /app metadata:', err.message);
+    }
+
+    return null;
+  }
+
+  /**
    * Resolves the numeric installation ID for a specific repository
    */
   static async getInstallationIdForRepo(owner: string, repo: string, appJwt: string): Promise<number> {
@@ -128,8 +184,12 @@ export class GitHubAppService {
     });
 
     if (response.status === 404) {
+      const appInfo = await this.getAppInfo();
+      const installHint = appInfo?.installUrl
+        ? ` Please install the Repo Doctor GitHub App on "${owner}/${repo}" via ${appInfo.installUrl} to grant repository access.`
+        : ` Please install the Repo Doctor GitHub App on "${owner}/${repo}" to grant repository access.`;
       throw new Error(
-        `GitHub App is not installed on repository "${owner}/${repo}". Please install the Repo Doctor GitHub App on "${owner}/${repo}" to grant repository access.`
+        `GitHub App is not installed on repository "${owner}/${repo}".${installHint}`
       );
     }
 

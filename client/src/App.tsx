@@ -4,6 +4,7 @@ import {
   GeneratedPatch,
   PRSubmissionResult,
   RescanComparison,
+  AppSettings,
 } from './types/index.js';
 import { ApiService } from './services/api.js';
 import { Navbar } from './components/Navbar.js';
@@ -53,6 +54,14 @@ export function App() {
   const [prResult, setPrResult] = useState<PRSubmissionResult | null>(null);
   const [isRescanning, setIsRescanning] = useState<boolean>(false);
   const [comparison, setComparison] = useState<RescanComparison | null>(null);
+
+  // Settings & App state
+  const [settings, setSettings] = useState<AppSettings | null>(null);
+
+  // Load settings on mount
+  useEffect(() => {
+    ApiService.getSettings().then(setSettings).catch(() => {});
+  }, []);
 
   // Apply theme
   useEffect(() => {
@@ -210,6 +219,7 @@ export function App() {
           hasActiveReport={!!report}
           theme={theme}
           onToggleTheme={toggleTheme}
+          githubAppInstallUrl={settings?.githubAppInstallUrl}
         />
 
         {/* 1. Landing View when no report is active and not scanning */}
@@ -293,6 +303,32 @@ export function App() {
                   ⚛️ facebook/react
                 </button>
               </div>
+
+              {settings?.githubAppInstallUrl && (
+                <div style={{ marginTop: 14, display: 'flex', justifyContent: 'center' }}>
+                  <a
+                    href={settings.githubAppInstallUrl}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    style={{
+                      display: 'inline-flex',
+                      alignItems: 'center',
+                      gap: 8,
+                      fontSize: '0.8125rem',
+                      color: 'var(--accent-cyan)',
+                      textDecoration: 'none',
+                      background: 'rgba(6, 182, 212, 0.08)',
+                      padding: '6px 14px',
+                      borderRadius: '20px',
+                      border: '1px solid rgba(6, 182, 212, 0.25)',
+                      transition: 'all 0.2s ease',
+                    }}
+                  >
+                    <ExternalLink size={13} />
+                    <span>Want Repo Doctor to open PRs on your repos? <strong>Install our GitHub App &rarr;</strong></span>
+                  </a>
+                </div>
+              )}
             </div>
 
             {/* Feature summary cards */}

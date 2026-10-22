@@ -1,5 +1,5 @@
 import React from 'react';
-import { Activity, History, Settings, Download, Plus, Moon, Sun, Sparkles } from 'lucide-react';
+import { Activity, History, Settings, Download, Plus, Moon, Sun, Sparkles, ExternalLink } from 'lucide-react';
 
 interface NavbarProps {
   onNewScan: () => void;
@@ -9,6 +9,7 @@ interface NavbarProps {
   hasActiveReport: boolean;
   theme: 'dark' | 'light';
   onToggleTheme: () => void;
+  githubAppInstallUrl?: string | null;
 }
 
 export const Navbar: React.FC<NavbarProps> = ({
@@ -19,6 +20,7 @@ export const Navbar: React.FC<NavbarProps> = ({
   hasActiveReport,
   theme,
   onToggleTheme,
+  githubAppInstallUrl,
 }) => {
   return (
     <header className="navbar">
@@ -46,6 +48,26 @@ export const Navbar: React.FC<NavbarProps> = ({
               </button>
             )}
           </>
+        )}
+
+        {githubAppInstallUrl && (
+          <a
+            href={githubAppInstallUrl}
+            target="_blank"
+            rel="noopener noreferrer"
+            className="btn btn-secondary"
+            title="Install GitHub App to enable automated PRs on your repositories"
+            style={{
+              borderColor: 'rgba(6, 182, 212, 0.4)',
+              color: 'var(--accent-cyan)',
+              display: 'inline-flex',
+              alignItems: 'center',
+              gap: 6,
+            }}
+          >
+            <ExternalLink size={14} />
+            <span>Install GitHub App</span>
+          </a>
         )}
 
         <button className="btn btn-secondary" onClick={onOpenHistory} title="Scan History">
