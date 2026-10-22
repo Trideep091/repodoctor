@@ -12,9 +12,9 @@ private-key.pem
 node_modules/
 
 # Build outputs & caches
-dist/
+/dist/
 client/dist/
-server/dist/
+!server/dist/**
 build/
 .cache/
 *.tsbuildinfo
